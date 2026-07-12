@@ -11,7 +11,7 @@ class Side(Enum):
 _id_counter = itertools.count(1)
  
  
-@dataclass                                                      # intentionally not frozen
+@dataclass                                                      # intention, not frozen
 class Order:
     side: Side
     price: float

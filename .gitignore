@@ -220,3 +220,6 @@ __marimo__/
 
 # pre
 pre/
+
+# tests
+tests/__pycache__/
