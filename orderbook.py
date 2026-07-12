@@ -11,8 +11,8 @@ class Side(Enum):
 _id_counter = itertools.count(1)
  
  
-@dataclass                                                      # intention, not frozen
-class Order:
+@dataclass                                                      
+class Order:                                                    # intention, not frozen
     side: Side
     price: float
     quantity: float          
@@ -57,4 +57,4 @@ class OrderBook:
     def best_ask(self):
         return self.asks[0] if self.asks else None
 
-    def add_limit_order(self):
+    def add_limit_order(self, order: "Order") -> list["Trade"]:
