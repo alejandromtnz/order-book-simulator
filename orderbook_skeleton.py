@@ -18,4 +18,9 @@ class Order:
     quantity: float          
     timestamp: int           
     id: int = field(default_factory=lambda: next(_id_counter))
+    
+    original_quantity: float = field(init=False)  
+    def __post_init__(self):
+        self.original_quantity = self.quantity
+
  
