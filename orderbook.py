@@ -58,3 +58,43 @@ class OrderBook:
         return self.asks[0] if self.asks else None
 
     def add_limit_order(self, order: "Order") -> list["Trade"]:
+        trades = []
+
+        counter_book = self.asks if order.side == Side.BUY else self.bids           # makes unnecessary an if/else for the counter book
+
+        while order.quantity > 0 and len(counter_book) > 0:                         # running while orders to match and order not fully filled
+            best_counter = counter_book[0]
+
+            if order.side == Side.BUY and order.price < best_counter.price:         # my buy > other sell !=
+                break
+            if order.side == Side.SELL and order.price > best_counter.price:        # my sell < other buy !=
+                break
+
+            filled_qty = min(order.quantity, best_counter.quantity)                 # minimum of the two quantities to fill the order, otherwise it would be a negative quantity
+
+            if order.side == Side.BUY:                                              # id of the buy order is always the one that is being added to the book, and the id of the sell order is always the one that is being matched against it
+                trade = Trade(buy_order_id=order.id, sell_order_id=best_counter.id,
+                          price=best_counter.price, quantity=filled_qty,
+                          timestamp=order.timestamp)
+            
+            else:
+                trade = Trade(buy_order_id=best_counter.id, sell_order_id=order.id,
+                          price=best_counter.price, quantity=filled_qty,
+                          timestamp=order.timestamp)
+            
+            trades.append(trade)
+            self.trades.append(trade)
+
+            order.quantity -= filled_qty                                            # minus the filled quantity from the order being added to the book
+            best_counter.quantity -= filled_qty
+
+            if best_counter.quantity == 0:                                          # if the best counter order is fully filled, remove it from the book
+                counter_book.pop(0)
+
+        if order.quantity > 0:                                                      # if the order being added to the book is not fully filled, add it to the book
+            self.add_resting_order(order)
+
+        return trades
+
+
+
