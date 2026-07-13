@@ -95,6 +95,14 @@ class OrderBook:
             self.add_resting_order(order)
 
         return trades
+    
+    def cancel_order(self, order_id: int) -> bool:                                  # cancel an order by id, return True if found and removed, False otherwise
+        for book_side in (self.bids, self.asks):                                    # iterate over both sides of the book
+            for i, o in enumerate(book_side):                                       # iterate over the position and number of the order 
+                if o.id == order_id:
+                    book_side.pop(i)
+                    return True
+        return False                                                                # do not found the order
 
 
 
