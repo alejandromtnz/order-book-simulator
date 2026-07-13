@@ -31,6 +31,7 @@ class Trade:                                                    # frozen
     price: float              
     quantity: float
     timestamp: int
+    aggressor_side: Side
 
 
 class OrderBook:
@@ -75,12 +76,12 @@ class OrderBook:
             if order.side == Side.BUY:                                              # id of the buy order is always the one that is being added to the book, and the id of the sell order is always the one that is being matched against it
                 trade = Trade(buy_order_id=order.id, sell_order_id=best_counter.id,
                           price=best_counter.price, quantity=filled_qty,
-                          timestamp=order.timestamp)
+                          timestamp=order.timestamp, aggressor_side=order.side)
             
             else:
                 trade = Trade(buy_order_id=best_counter.id, sell_order_id=order.id,
                           price=best_counter.price, quantity=filled_qty,
-                          timestamp=order.timestamp)
+                          timestamp=order.timestamp, aggressor_side=order.side)
             
             trades.append(trade)
             self.trades.append(trade)
@@ -105,12 +106,11 @@ class OrderBook:
         return False                                                                # do not found the order
 
     def print_book(self, depth: int = 5):
-        print("----- ASKS (peor a mejor) -----")
+        print("----- ASKS (worst to best) -----")
         for a in reversed(self.asks[:depth]):
             print(f"  {a.price:>8.2f}  |  qty {a.quantity}")
-        print("--------------------------------")
+        print("---------------------------------")
         for b in self.bids[:depth]:
             print(f"  {b.price:>8.2f}  |  qty {b.quantity}")
-        print("----- BIDS (mejor a peor) ------")
-
+        print("----- BIDS (best to worst) ------")
 
