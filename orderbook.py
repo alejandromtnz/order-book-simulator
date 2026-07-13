@@ -104,5 +104,13 @@ class OrderBook:
                     return True
         return False                                                                # do not found the order
 
+    def print_book(self, depth: int = 5):
+        print("----- ASKS (peor a mejor) -----")
+        for a in reversed(self.asks[:depth]):
+            print(f"  {a.price:>8.2f}  |  qty {a.quantity}")
+        print("--------------------------------")
+        for b in self.bids[:depth]:
+            print(f"  {b.price:>8.2f}  |  qty {b.quantity}")
+        print("----- BIDS (mejor a peor) ------")
 
 
