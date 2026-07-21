@@ -79,3 +79,17 @@ class MarketMaker:
                 inventory -= trade.quantity
                 cash += trade.price * trade.quantity
         return inventory, cash
+
+    def get_pnl(self, current_price: float | None = None) -> float:
+        """
+        Total PnL: the cash already collected/spent, plus the
+        mark-to-market value of whatever inventory we are still
+        holding, valued at current_price. If current_price isn't
+        given, falls back to our own last known mid.
+        """
+        inventory, cash = self.get_inventory_and_cash()
+        if current_price is None:
+            current_price = self.last_mid
+        if current_price is None:
+            return cash          # no reference price at all, nothing to mark inventory against
+        return cash + inventory * current_price
