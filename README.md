@@ -65,6 +65,28 @@ order-book-simulator/
   README.md
 ```
 
+```markdown
+## Files
+
+- `orderbook.py` - `Order`, `Trade`, and `OrderBook`: the matching engine.
+- `market_maker.py` - the `MarketMaker` bot: quoting, inventory, PnL.
+- `market_simulator.py` - random order flow, true-price random walk, plots.
+- `evaluate_skew.py` - multi-seed sweep to pick `skew_coefficient`.
+- `evaluate_volatility.py` - multi-seed sweep to pick `vol_coefficient`.
+
+## Tests
+
+- `test_orderbook.py` - storage, sorting, best bid/ask, cancellation.
+- `test_matching.py` - full fill, partial fill, walking the book, no match.
+- `test_market_maker.py` - quotes inside spread, requoting, empty book.
+- `test_market_maker_pnl.py` - inventory/cash after a buy, a sell, no trades.
+- `test_market_maker_totalpnl.py` - PnL with explicit price, fallback mid, zero.
+- `test_inventory_skew.py` - no skew at zero inventory, short pushes up, long pushes down.
+- `test_mid_history.py` - first mid recorded, grows each tick, empty without a real mid.
+- `test_volatility.py` - zero with no/one point, matches stdev, ignores old points.
+- `test_volatility_spread.py` - zero coefficient unchanged, high vol widens, calm market unchanged.
+```
+
 ## Running it
 
 ```bash
