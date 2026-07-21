@@ -61,7 +61,7 @@ def simulate_market(n_ticks: int = 200, start_price: float = 100.0, seed: int | 
 
 
 def simulate_market_with_bot(n_ticks: int = 200, start_price: float = 100.0, seed: int | None = None,
-                              spread_pct: float = 0.001, quote_qty: int = 10):
+                              spread_pct: float = 0.001, quote_qty: int = 10, skew_coefficient: float = 0.0):
     """
     Same as simulate_market, but a MarketMaker bot also quotes into the
     book every tick, right before that tick's random order arrives.
@@ -72,7 +72,7 @@ def simulate_market_with_bot(n_ticks: int = 200, start_price: float = 100.0, see
         random.seed(seed)
 
     book = OrderBook()
-    bot = MarketMaker(book, spread_pct=spread_pct, quote_qty=quote_qty)
+    bot = MarketMaker(book, spread_pct=spread_pct, quote_qty=quote_qty, skew_coefficient=skew_coefficient)
     true_price = start_price
     price_history = [(0, true_price)]
 
@@ -130,7 +130,10 @@ def plot_simulation(book: OrderBook, price_history, save_path: str = "market_sim
 
 
 if __name__ == "__main__":
-    book, price_history, bot = simulate_market_with_bot(n_ticks=200, seed=42)
+    # skew_coefficient=0.01 chosen from evaluate_skew.py's 50-seed sweep
+    # (see README Findings) - the best mean PnL / lowest variance point
+    # before higher values start overcorrecting and giving up edge.
+    book, price_history, bot = simulate_market_with_bot(n_ticks=200, seed=42, skew_coefficient=0.01)
 
     print(f"Executed trades: {len(book.trades)}")
     print(f"Resting orders in bids: {len(book.bids)}  |  in asks: {len(book.asks)}")
@@ -142,4 +145,4 @@ if __name__ == "__main__":
     print(f"Bot cash: {cash:.2f}")
     print(f"Bot PnL: {pnl:.2f}")
 
-    plot_simulation(book, price_history, save_path="market_simulation_no_skew.png")
+    plot_simulation(book, price_history, save_path="market_simulation_with_skew.png")

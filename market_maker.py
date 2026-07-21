@@ -13,10 +13,12 @@ from orderbook import Order, OrderBook, Side
 
 
 class MarketMaker:
-    def __init__(self, book: OrderBook, spread_pct: float = 0.001, quote_qty: int = 10):
+    def __init__(self, book: OrderBook, spread_pct: float = 0.001, quote_qty: int = 10,
+                 skew_coefficient: float = 0.0):
         self.book = book
         self.spread_pct = spread_pct
         self.quote_qty = quote_qty
+        self.skew_coefficient = skew_coefficient   # how hard we push quotes to correct inventory
         self.my_bid: Order | None = None      # our resting bid right now, if any
         self.my_ask: Order | None = None      # our resting ask right now, if any
         self.last_mid: float | None = None    # fallback price if book has no bid/ask yet
@@ -44,9 +46,12 @@ class MarketMaker:
         if mid is None:
             return                        # no reference price yet, skip this tick
 
-        offset = mid * self.spread_pct / 2
-        bid_price = round(mid - offset, 2)
-        ask_price = round(mid + offset, 2)
+        inventory, _ = self.get_inventory_and_cash()
+        skewed_mid = mid - self.skew_coefficient * inventory   # short -> push up, long -> push down
+
+        offset = mid * self.spread_pct / 2                     # spread width still based on raw mid
+        bid_price = round(skewed_mid - offset, 2)
+        ask_price = round(skewed_mid + offset, 2)
 
         bid_order = Order(Side.BUY, bid_price, self.quote_qty, timestamp)
         self.my_order_ids.add(bid_order.id)      # remember this id no matter what happens to it

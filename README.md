@@ -31,7 +31,11 @@ any complexity.
 - **`MarketMaker`** (`market_maker.py`): a level-2 market-making bot that
   quotes a percentage-based spread around the mid-price, always cancelling
   its previous quote before placing a new one. Tracks its own inventory,
-  cash, and total PnL (realized + mark-to-market) from its own trades.
+  cash, and total PnL (realized + mark-to-market) from its own trades, and
+  skews its quotes to correct accumulated inventory.
+- **`evaluate_skew.py`**: runs the bot across many random seeds per
+  candidate `skew_coefficient`, to judge each one by its average behaviour
+  (and variance) instead of a single lucky/unlucky run.
 
 ## Project structure
 
@@ -47,6 +51,7 @@ order-book-simulator/
     test_market_maker.py       # bot quoting behaviour
     test_market_maker_pnl.py    # inventory / cash tracking
     test_market_maker_totalpnl.py  # PnL calculation
+    test_inventory_skew.py          # inventory skew direction
   README.md
 ```
 
@@ -60,18 +65,50 @@ python3 market_simulator.py
 
 ## Findings
 
-Running the bot for 200 ticks with no inventory management
-(`market_simulation_no_skew.png`) shows the real risk of a naive
-percentage-spread strategy: the bot drifted to an inventory of **-279
-units** (heavily net short), and ended with a slightly negative PnL
-(-38.71), despite collecting a large amount of cash from selling. Without
-any mechanism to correct for accumulated position, the bot has no way to
-push itself back toward neutral - this is the concrete motivation for
-adding inventory skew next.
+**Single-run check (seed=42, 200 ticks):** with no inventory management,
+the bot drifted to an inventory of **-279 units** (heavily net short) and
+a PnL of -38.71. A large cash balance (+27984.05) hid an equally large
+liability - the 279 units it still "owed" at market price - which is why
+raw cash is a misleading number on its own; PnL (cash + inventory marked
+to the current price) is what actually matters.
 
-*(to fill in once inventory skew is implemented: same seed, comparison
-chart `market_simulation_with_skew.png`, and the resulting inventory/PnL
-numbers)*
+| | Inventory | Cash | PnL |
+|---|---|---|---|
+| No skew | -279.0 | 27984.05 | -38.71 |
+| skew=0.001 | -10.0 | 993.68 | -11.72 |
+| skew=0.01 | 0.0 | -27.59 | -27.59 |
+
+(Note skew=0.01 looks "worse" than skew=0.001 on this ONE seed - that's
+exactly the trap the 50-seed sweep below catches: a single run can't tell
+you which coefficient is actually better.)
+
+**Why a single run isn't enough:** picking a `skew_coefficient` from one
+seed is unreliable - `evaluate_skew.py` reruns each candidate across 50
+random seeds and reports the mean PnL, its standard deviation, and the
+mean absolute inventory:
+
+| skew | mean PnL | stdev PnL | mean \|inventory\| |
+|---|---|---|---|
+| 0.0    | -24.66  | 56.93 | 368.54 |
+| 0.0005 | -31.42  | 51.96 | 163.16 |
+| 0.001  | -29.76  | 35.27 |  81.08 |
+| 0.002  | -27.64  | 31.84 |  38.60 |
+| 0.005  | -16.76  | 16.63 |  16.60 |
+| **0.01**   | **-15.62**  | **12.50** |   **9.40** |
+| 0.02   | -23.58  |  9.39 |   6.14 |
+| 0.05   | -79.93  | 14.92 |   4.66 |
+| 0.1    | -176.22 | 29.70 |   4.92 |
+| 0.2    | -365.39 | 70.53 |   4.60 |
+
+Across 50 seeds, `skew=0.001` is actually mediocre - the earlier
+single-seed result favouring it was noise from one lucky run. The real
+picture: inventory risk drops steadily as skew increases, but PnL only
+improves up to **~0.01**, then gets sharply worse (-15.62 -> -365.39) even
+though inventory barely changes further (it's already near its floor,
+~4.6-9 units). Beyond that point the bot is overcorrecting - quoting so
+aggressively to stay flat that it gives away edge on every trade for no
+extra risk reduction. `skew_coefficient=0.01` is the value now used in
+`market_simulator.py`'s default run.
 
 ## Roadmap
 
@@ -80,7 +117,7 @@ This is the first of several weekend milestones. Coming up:
 1. ~~Random order flow generator, to simulate a live market.~~ Done.
 2. ~~A market-making bot with percentage-based spread quoting.~~ Done.
 3. ~~Inventory and PnL tracking for the bot.~~ Done.
-4. Inventory-skewed quoting, to manage the risk found above.
+4. ~~Inventory-skewed quoting, to manage the risk found above.~~ Done.
 5. PnL chart over the course of a simulation.
 6. Optional: volatility-based spread, an Avellaneda-Stoikov-style model,
    robust self-trade prevention, and a C++ port of the matching engine core.
