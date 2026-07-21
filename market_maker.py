@@ -23,6 +23,7 @@ class MarketMaker:
         self.my_ask: Order | None = None      # our resting ask right now, if any
         self.last_mid: float | None = None    # fallback price if book has no bid/ask yet
         self.my_order_ids: set[int] = set()   # every order id we have ever submitted
+        self.mid_history: list[float] = []    # every real mid we have ever observed, in order
 
     def _cancel_my_orders(self):
         if self.my_bid is not None:
@@ -37,6 +38,7 @@ class MarketMaker:
         best_ask = self.book.best_ask()
         if best_bid is not None and best_ask is not None:
             self.last_mid = (best_bid.price + best_ask.price) / 2   # both sides exist, use real mid
+            self.mid_history.append(self.last_mid)                  # remember it for volatility later
         return self.last_mid
 
     def update_quotes(self, timestamp: int):
