@@ -1,12 +1,12 @@
 """
-market maker bot, level 2 (percentage spread)
+market maker bot, level 2 + level 3 (percentage spread, widened/narrowed by volatility)
 always cancels its own old bid/ask before placing new ones each tick,
 so it never leaves a stale quote sitting in the book
 """
 
 # TODO level 1: fixed absolute spread - done (rejected, too naive)
 # TODO level 2: percentage-based spread - done (this file)
-# TODO level 3: volatility-based spread - not done yet
+# TODO level 3: volatility-based spread - done (this file)
 # TODO level 4: avellaneda-stoikov model (spread + inventory skew together) - not done yet
 
 import statistics
@@ -16,12 +16,13 @@ from orderbook import Order, OrderBook, Side
 
 class MarketMaker:
     def __init__(self, book: OrderBook, spread_pct: float = 0.001, quote_qty: int = 10,
-                 skew_coefficient: float = 0.0, vol_window: int = 20):
+                 skew_coefficient: float = 0.0, vol_window: int = 20, vol_coefficient: float = 0.0):
         self.book = book
         self.spread_pct = spread_pct
         self.quote_qty = quote_qty
         self.skew_coefficient = skew_coefficient   # how hard we push quotes to correct inventory
         self.vol_window = vol_window          # how many recent mids we look at for volatility
+        self.vol_coefficient = vol_coefficient  # how hard volatility widens/narrows the spread
         self.my_bid: Order | None = None      # our resting bid right now, if any
         self.my_ask: Order | None = None      # our resting ask right now, if any
         self.last_mid: float | None = None    # fallback price if book has no bid/ask yet
@@ -65,7 +66,10 @@ class MarketMaker:
         inventory, _ = self.get_inventory_and_cash()
         skewed_mid = mid - self.skew_coefficient * inventory   # short -> push up, long -> push down
 
-        offset = mid * self.spread_pct / 2                     # spread width still based on raw mid
+        volatility = self._recent_volatility()                 # stdev of recent mids, 0.0 if not enough data
+        relative_vol = volatility / mid                        # volatility as a fraction of price
+        effective_spread_pct = self.spread_pct * (1 + self.vol_coefficient * relative_vol)
+        offset = mid * effective_spread_pct / 2                 # wider when the market's been jumpy
         bid_price = round(skewed_mid - offset, 2)
         ask_price = round(skewed_mid + offset, 2)
 
