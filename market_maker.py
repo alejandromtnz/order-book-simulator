@@ -9,21 +9,35 @@ so it never leaves a stale quote sitting in the book
 # TODO level 3: volatility-based spread - not done yet
 # TODO level 4: avellaneda-stoikov model (spread + inventory skew together) - not done yet
 
+import statistics
+
 from orderbook import Order, OrderBook, Side
 
 
 class MarketMaker:
     def __init__(self, book: OrderBook, spread_pct: float = 0.001, quote_qty: int = 10,
-                 skew_coefficient: float = 0.0):
+                 skew_coefficient: float = 0.0, vol_window: int = 20):
         self.book = book
         self.spread_pct = spread_pct
         self.quote_qty = quote_qty
         self.skew_coefficient = skew_coefficient   # how hard we push quotes to correct inventory
+        self.vol_window = vol_window          # how many recent mids we look at for volatility
         self.my_bid: Order | None = None      # our resting bid right now, if any
         self.my_ask: Order | None = None      # our resting ask right now, if any
         self.last_mid: float | None = None    # fallback price if book has no bid/ask yet
         self.my_order_ids: set[int] = set()   # every order id we have ever submitted
         self.mid_history: list[float] = []    # every real mid we have ever observed, in order
+
+    def _recent_volatility(self) -> float:
+        """
+        Standard deviation of the last vol_window mids we have observed.
+        Needs at least 2 points to mean anything, so with 0 or 1 points
+        we just say volatility is 0 (calm, by default) rather than crash.
+        """
+        recent = self.mid_history[-self.vol_window:]
+        if len(recent) < 2:
+            return 0.0
+        return statistics.stdev(recent)
 
     def _cancel_my_orders(self):
         if self.my_bid is not None:
