@@ -12,11 +12,11 @@ _id_counter = itertools.count(1)
  
  
 @dataclass                                                      
-class Order:                                                    # intention, not frozen
+class Order:        # intention, not frozen
     side: Side
     price: float
     quantity: float          
-    timestamp: int                                              # arrival time
+    timestamp: int          # arrival time
     id: int = field(default_factory=lambda: next(_id_counter))  # autom id
     
     original_quantity: float = field(init=False)  
@@ -25,7 +25,7 @@ class Order:                                                    # intention, not
 
 
 @dataclass
-class Trade:                                                    # frozen
+class Trade:         # frozen
     buy_order_id: int
     sell_order_id: int
     price: float              
@@ -47,10 +47,8 @@ class OrderBook:
         else:
             self.asks.append(order)
             self.asks.sort(key=lambda o: (o.price, o.timestamp))
-
-        # TODO:
-        # lvl 2 - bisect
-        # lvl 3 - heapq / pip install sortedcontainers
+            
+        # possible optimization if book size grows a lot: bisect / heapq - not needed at this scale
 
     def best_bid(self):
         return self.bids[0] if self.bids else None
@@ -86,24 +84,24 @@ class OrderBook:
             trades.append(trade)
             self.trades.append(trade)
 
-            order.quantity -= filled_qty                                            # minus the filled quantity from the order being added to the book
+            order.quantity -= filled_qty                # minus the filled quantity from the order being added to the book
             best_counter.quantity -= filled_qty
 
-            if best_counter.quantity == 0:                                          # if the best counter order is fully filled, remove it from the book
+            if best_counter.quantity == 0:              # if the best counter order is fully filled, remove it from the book
                 counter_book.pop(0)
 
-        if order.quantity > 0:                                                      # if the order being added to the book is not fully filled, add it to the book
+        if order.quantity > 0:                          # if the order being added to the book is not fully filled, add it to the book
             self.add_resting_order(order)
 
         return trades
     
-    def cancel_order(self, order_id: int) -> bool:                                  # cancel an order by id, return True if found and removed, False otherwise
-        for book_side in (self.bids, self.asks):                                    # iterate over both sides of the book
-            for i, o in enumerate(book_side):                                       # iterate over the position and number of the order 
+    def cancel_order(self, order_id: int) -> bool:      # cancel an order by id, return True if found and removed, False otherwise
+        for book_side in (self.bids, self.asks):        # iterate over both sides of the book
+            for i, o in enumerate(book_side):           # iterate over the position and number of the order 
                 if o.id == order_id:
                     book_side.pop(i)
                     return True
-        return False                                                                # do not found the order
+        return False                                    # do not found the order
 
     def print_book(self, depth: int = 5):
         print("----- ASKS (worst to best) -----")

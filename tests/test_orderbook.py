@@ -9,10 +9,10 @@ def test_bids_sorted_by_price_then_time():
     book = OrderBook()
     book.add_resting_order(Order(Side.BUY, 102.10, 5, timestamp=0))
     book.add_resting_order(Order(Side.BUY, 103.00, 5, timestamp=1))
-    book.add_resting_order(Order(Side.BUY, 103.00, 3, timestamp=2))  # empate de precio
+    book.add_resting_order(Order(Side.BUY, 103.00, 3, timestamp=2))  # price tie
 
     assert book.best_bid().price == 103.00
-    assert book.best_bid().timestamp == 1  # el que llegó antes gana el empate
+    assert book.best_bid().timestamp == 1  # earlier one wins the tie
 
 def test_asks_sorted_by_price_then_time():
     book = OrderBook()
@@ -34,4 +34,4 @@ def test_cancel_unknown_id_returns_false():
     book.add_resting_order(Order(Side.BUY, 102.10, 5, timestamp=0))
 
     assert book.cancel_order(9999) is False
-    assert book.best_bid() is not None  # la orden real sigue ahí, intacta
+    assert book.best_bid() is not None  # real order still there, untouch
