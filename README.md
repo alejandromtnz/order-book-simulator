@@ -28,14 +28,20 @@ any complexity.
     debugging.
 - **`market_simulator.py`**: generates random order flow around a reference
   price that moves with a small random walk, to simulate a live market.
-- **`MarketMaker`** (`market_maker.py`): a level-2 market-making bot that
-  quotes a percentage-based spread around the mid-price, always cancelling
-  its previous quote before placing a new one. Tracks its own inventory,
-  cash, and total PnL (realized + mark-to-market) from its own trades, and
-  skews its quotes to correct accumulated inventory.
+- **`MarketMaker`** (`market_maker.py`): a level-2 + level-3 market-making
+  bot that quotes a percentage-based spread around the mid-price, always
+  cancelling its previous quote before placing a new one. Tracks its own
+  inventory, cash, and total PnL (realized + mark-to-market) from its own
+  trades, skews its quotes to correct accumulated inventory, and widens
+  its spread when its own recent mid prices have been volatile (measured
+  as the standard deviation of its `mid_history`, entirely self-observed -
+  it never peeks at the simulator's "true" price).
 - **`evaluate_skew.py`**: runs the bot across many random seeds per
   candidate `skew_coefficient`, to judge each one by its average behaviour
   (and variance) instead of a single lucky/unlucky run.
+- **`evaluate_volatility.py`**: same idea, for `vol_coefficient` - sweeps
+  candidate values across 50 seeds, on top of the already-chosen
+  `skew_coefficient=0.01`.
 
 ## Project structure
 
@@ -44,6 +50,7 @@ order-book-simulator/
   orderbook.py            # Order, Trade, OrderBook
   market_simulator.py      # random order flow + true-price random walk
   market_maker.py           # the bot
+  evaluate_volatility.py    # multi-seed sweep to pick vol_coefficient
   tests/
     test_orderbook.py        # storage / best_bid / best_ask
     test_matching.py          # the 4 matching cases
@@ -52,6 +59,9 @@ order-book-simulator/
     test_market_maker_pnl.py    # inventory / cash tracking
     test_market_maker_totalpnl.py  # PnL calculation
     test_inventory_skew.py          # inventory skew direction
+    test_mid_history.py              # bot's own mid price tracking
+    test_volatility.py                # stdev calculation over recent mids
+    test_volatility_spread.py          # spread widening/narrowing behaviour
   README.md
 ```
 
@@ -110,6 +120,60 @@ aggressively to stay flat that it gives away edge on every trade for no
 extra risk reduction. `skew_coefficient=0.01` is the value now used in
 `market_simulator.py`'s default run.
 
+**Volatility-based spread (level 3):** with `skew_coefficient` fixed at
+0.01, `evaluate_volatility.py` swept `vol_coefficient` across 50 seeds
+each:
+
+| vol_coefficient | mean PnL | stdev PnL | mean \|inventory\| |
+|---|---|---|---|
+| 0    | -15.62 | 12.50 | 9.40 |
+| 10   | -14.67 | 11.85 | 9.02 |
+| 50   | -14.37 | 12.01 | 9.08 |
+| 100  | -14.07 | 11.66 | 9.16 |
+| **200**  | **-13.36** | **11.30** | **9.06** |
+| 500  | -11.19 |  9.28 | 9.28 |
+| 1000 |  -9.37 |  9.02 | 9.34 |
+| 2000 |  -7.04 |  8.49 | 9.84 |
+| 5000 |  -3.66 |  6.79 | 7.96 |
+
+At first glance PnL just keeps improving as `vol_coefficient` grows -
+values in the tens of thousands push it close to 0. That is a trap, not
+a win: past a certain point the spread becomes so wide the bot's bid and
+ask never get crossed by anyone, so it stops trading almost entirely.
+Checking how often the bot actually executes confirms it (mean trades
+per 200-tick run, 50 seeds):
+
+| vol_coefficient | mean trades | % of baseline |
+|---|---|---|
+| 0     | 47.8 | 100% |
+| 100   | 42.7 |  89% |
+| 200   | 40.8 |  85% |
+| 500   | 35.6 |  74% |
+| 1000  | 29.1 |  61% |
+| 5000  |  9.8 |  20% |
+| 20000+ |  0.0 |   0% |
+
+A bot that never trades never loses money, but it also is not a market
+maker anymore - it has opted out. `vol_coefficient=200` was chosen
+because it keeps 85% of normal trading activity (a genuinely functioning
+bot) while still meaningfully trimming risk in volatile periods, instead
+of chasing the highest PnL number at the cost of barely participating.
+This mirrors the earlier skew finding: don't optimize a single metric
+blindly, check what the model is actually doing to get there.
+
+**Why PnL stays negative even with both controls active:** the simulated
+market is pure noise - every incoming order is a coin-flip side at a
+random price around the true price, with no informed trader on the other
+side. A market maker with no informational edge should not expect to
+profit from noise alone; the spread it earns is offset by the risk of
+the reference price drifting against its resting inventory between
+quotes. Skew and volatility-based spread reduce that risk and its
+variance, they do not manufacture edge that is not there. Real market
+makers profit through scale, faster reaction times, and detecting
+informed ("toxic") flow to avoid - all out of scope here. A PnL close to
+break-even with low variance is the expected, defensible outcome for a
+correctly risk-managed bot in a directionless toy market.
+
 ## Roadmap
 
 This is the first of several weekend milestones. Coming up:
@@ -119,8 +183,14 @@ This is the first of several weekend milestones. Coming up:
 3. ~~Inventory and PnL tracking for the bot.~~ Done.
 4. ~~Inventory-skewed quoting, to manage the risk found above.~~ Done.
 5. ~~PnL chart over the course of a simulation.~~ Done (`pnl_over_time.png`).
-6. Optional: volatility-based spread, an Avellaneda-Stoikov-style model,
-   robust self-trade prevention, and a C++ port of the matching engine core.
+6. ~~Volatility-based spread, widening/narrowing quotes based on the bot's
+   own recent price volatility.~~ Done.
+7. ~~Robust self-trade prevention.~~ Resolved by construction - the bid/ask
+   formula always produces `bid < ask`, so this single bot can never cross
+   itself (see the comment above `random_order` in `market_simulator.py`).
+8. Optional: an Avellaneda-Stoikov-style model (combining skew and
+   volatility into one formal framework), and a C++ port of the matching
+   engine core.
 
 ## Why this project
 
