@@ -13,20 +13,21 @@ from orderbook import Order, OrderBook, Side
 
 
 class MarketMaker:
-    def __init__(self, book: OrderBook, spread_pct: float = 0.001, quote_qty: int = 10):        # spread percentage = 0,1%
+    def __init__(self, book: OrderBook, spread_pct: float = 0.001, quote_qty: int = 10):
         self.book = book
         self.spread_pct = spread_pct
         self.quote_qty = quote_qty
-        self.my_bid: Order | None = None                    # our resting bid right now, if any
-        self.my_ask: Order | None = None                    # our resting ask right now, if any
-        self.last_mid: float | None = None                  # fallback price if book has no bid/ask yet
+        self.my_bid: Order | None = None      # our resting bid right now, if any
+        self.my_ask: Order | None = None      # our resting ask right now, if any
+        self.last_mid: float | None = None    # fallback price if book has no bid/ask yet
+        self.my_order_ids: set[int] = set()   # every order id we have ever submitted
 
     def _cancel_my_orders(self):
         if self.my_bid is not None:
-            self.book.cancel_order(self.my_bid.id)          # rip down the old bid
+            self.book.cancel_order(self.my_bid.id)    # rip down the old bid
             self.my_bid = None
         if self.my_ask is not None:
-            self.book.cancel_order(self.my_ask.id)          # rip down the old ask
+            self.book.cancel_order(self.my_ask.id)    # rip down the old ask
             self.my_ask = None
 
     def _compute_mid(self) -> float | None:
@@ -37,22 +38,44 @@ class MarketMaker:
         return self.last_mid
 
     def update_quotes(self, timestamp: int):
-        self._cancel_my_orders()                # always kill the old quote before anything else
+        self._cancel_my_orders()          # always kill the old quote before anything else
 
         mid = self._compute_mid()
         if mid is None:
-            return                              # no reference price yet, skip this tick
+            return                        # no reference price yet, skip this tick
 
         offset = mid * self.spread_pct / 2
         bid_price = round(mid - offset, 2)
         ask_price = round(mid + offset, 2)
 
         bid_order = Order(Side.BUY, bid_price, self.quote_qty, timestamp)
+        self.my_order_ids.add(bid_order.id)      # remember this id no matter what happens to it
         self.book.add_limit_order(bid_order)
-        if bid_order.quantity > 0:              # still resting, not fully filled instantly
+        if bid_order.quantity > 0:        # still resting, not fully filled instantly
             self.my_bid = bid_order
 
         ask_order = Order(Side.SELL, ask_price, self.quote_qty, timestamp)
+        self.my_order_ids.add(ask_order.id)      # remember this id no matter what happens to it
         self.book.add_limit_order(ask_order)
-        if ask_order.quantity > 0:              # still resting, not fully filled instantly
+        if ask_order.quantity > 0:        # still resting, not fully filled instantly
             self.my_ask = ask_order
+
+    def get_inventory_and_cash(self) -> tuple[float, float]:
+        """
+        Scans every trade the book has ever recorded, and adds up the
+        ones where we were the buyer or the seller (matched by id
+        against my_order_ids). Returns (inventory, cash):
+        - inventory: net units we currently hold (bought - sold)
+        - cash: net money moved so far (negative if we have spent more
+          buying than we have collected selling)
+        """
+        inventory = 0.0
+        cash = 0.0
+        for trade in self.book.trades:
+            if trade.buy_order_id in self.my_order_ids:
+                inventory += trade.quantity
+                cash -= trade.price * trade.quantity
+            if trade.sell_order_id in self.my_order_ids:
+                inventory -= trade.quantity
+                cash += trade.price * trade.quantity
+        return inventory, cash

@@ -113,4 +113,3 @@ class OrderBook:
         for b in self.bids[:depth]:
             print(f"  {b.price:>8.2f}  |  qty {b.quantity}")
         print("----- BIDS (best to worst) ------")
-
