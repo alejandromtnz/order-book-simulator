@@ -130,8 +130,16 @@ def plot_simulation(book: OrderBook, price_history, save_path: str = "market_sim
 
 
 if __name__ == "__main__":
-    book, price_history = simulate_market(n_ticks=200, seed=42)
+    book, price_history, bot = simulate_market_with_bot(n_ticks=200, seed=42)
+
     print(f"Executed trades: {len(book.trades)}")
     print(f"Resting orders in bids: {len(book.bids)}  |  in asks: {len(book.asks)}")
     book.print_book()
-    plot_simulation(book, price_history)
+
+    inventory, cash = bot.get_inventory_and_cash()
+    pnl = bot.get_pnl()
+    print(f"Bot inventory: {inventory}")
+    print(f"Bot cash: {cash:.2f}")
+    print(f"Bot PnL: {pnl:.2f}")
+
+    plot_simulation(book, price_history, save_path="market_simulation_no_skew.png")
