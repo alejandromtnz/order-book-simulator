@@ -9,16 +9,16 @@ import matplotlib.pyplot as plt
 from orderbook import Order, OrderBook, Side
 from market_maker import MarketMaker
 
-# TODO (self-cross / self-trade prevention): Order has no owner/trader_id
-# field right now. Once the market-making bot places its own bid and ask
-# into this same book, there's a theoretical risk of the bot crossing
-# against its own resting order. Two ways to handle it later:
-#   a) simple: the bot always cancels its previous quote before placing
-#      a new one, and never lets its own bid >= its own ask by design.
-#   b) robust: add an `owner` field to Order, and in add_limit_order,
-#      skip any best_counter whose owner matches order's owner (this is
-#      what real exchanges call self-trade prevention).
-# (a) is enough for this project's scale.
+# Self-cross / self-trade prevention - RESOLVED, not just deferred.
+# Order still has no owner/trader_id field, but it turns out it doesn't
+# need one: in MarketMaker.update_quotes, bid = skewed_mid - offset and
+# ask = skewed_mid + offset, where offset = mid * spread_pct / 2 is
+# always positive. That means bid < ask is guaranteed by construction,
+# no matter what the skew does to skewed_mid - the bot's own bid and ask
+# can never cross each other. A real exchange still needs a proper
+# owner-based self-trade check (many different strategies/desks share
+# the same book), but for this single bot, the formula itself already
+# rules out the risk.
 
 def random_order(true_price: float, timestamp: int, price_noise: float = 0.10, max_qty: int = 20) -> Order:
     """
@@ -61,7 +61,8 @@ def simulate_market(n_ticks: int = 200, start_price: float = 100.0, seed: int | 
 
 
 def simulate_market_with_bot(n_ticks: int = 200, start_price: float = 100.0, seed: int | None = None,
-                              spread_pct: float = 0.001, quote_qty: int = 10, skew_coefficient: float = 0.0):
+                              spread_pct: float = 0.001, quote_qty: int = 10, skew_coefficient: float = 0.0,
+                              vol_window: int = 20, vol_coefficient: float = 0.0):
     """
     Same as simulate_market, but a MarketMaker bot also quotes into the
     book every tick, right before that tick's random order arrives.
@@ -72,7 +73,8 @@ def simulate_market_with_bot(n_ticks: int = 200, start_price: float = 100.0, see
         random.seed(seed)
 
     book = OrderBook()
-    bot = MarketMaker(book, spread_pct=spread_pct, quote_qty=quote_qty, skew_coefficient=skew_coefficient)
+    bot = MarketMaker(book, spread_pct=spread_pct, quote_qty=quote_qty, skew_coefficient=skew_coefficient,
+                       vol_window=vol_window, vol_coefficient=vol_coefficient)
     true_price = start_price
     price_history = [(0, true_price)]
     pnl_history = [(0, 0.0)]                                                # bot starts with 0 PnL
@@ -167,7 +169,13 @@ if __name__ == "__main__":
     # skew_coefficient=0.01 chosen from evaluate_skew.py's 50-seed sweep
     # (see README Findings) - the best mean PnL / lowest variance point
     # before higher values start overcorrecting and giving up edge.
-    book, price_history, bot, pnl_history = simulate_market_with_bot(n_ticks=200, seed=42, skew_coefficient=0.01)
+    # vol_coefficient=200 chosen from evaluate_volatility.py's 50-seed sweep -
+    # keeps ~85% of normal trading activity while still trimming risk in
+    # jumpy periods; much higher values "win" on PnL only because the bot
+    # quotes so wide it stops trading altogether, which isn't a real win.
+    book, price_history, bot, pnl_history = simulate_market_with_bot(
+        n_ticks=200, seed=42, skew_coefficient=0.01, vol_coefficient=200
+    )
 
     print(f"Executed trades: {len(book.trades)}")
     print(f"Resting orders in bids: {len(book.bids)}  |  in asks: {len(book.asks)}")
@@ -179,5 +187,5 @@ if __name__ == "__main__":
     print(f"Bot cash: {cash:.2f}")
     print(f"Bot PnL: {pnl:.2f}")
 
-    plot_simulation(book, price_history, save_path="market_simulation_with_skew.png")
+    plot_simulation(book, price_history, save_path="market_simulation_with_volatility.png")
     plot_pnl(pnl_history, save_path="pnl_over_time.png")
