@@ -65,8 +65,8 @@ def simulate_market_with_bot(n_ticks: int = 200, start_price: float = 100.0, see
     """
     Same as simulate_market, but a MarketMaker bot also quotes into the
     book every tick, right before that tick's random order arrives.
-    Returns book, price_history, and the bot itself (so its state can be
-    inspected afterwards).
+    Returns book, price_history, the bot itself, and pnl_history (the
+    bot's mark-to-market PnL at every tick, using that tick's real price).
     """
     if seed is not None:
         random.seed(seed)
@@ -75,6 +75,7 @@ def simulate_market_with_bot(n_ticks: int = 200, start_price: float = 100.0, see
     bot = MarketMaker(book, spread_pct=spread_pct, quote_qty=quote_qty, skew_coefficient=skew_coefficient)
     true_price = start_price
     price_history = [(0, true_price)]
+    pnl_history = [(0, 0.0)]                                                # bot starts with 0 PnL
 
     for t in range(1, n_ticks + 1):
         true_price += random.gauss(0, 0.05)
@@ -85,7 +86,9 @@ def simulate_market_with_bot(n_ticks: int = 200, start_price: float = 100.0, see
         order = random_order(true_price, timestamp=t)
         book.add_limit_order(order)                                         # then a random trader shows up
 
-    return book, price_history, bot
+        pnl_history.append((t, bot.get_pnl(current_price=true_price)))      # mark-to-market at this tick's real price
+
+    return book, price_history, bot, pnl_history
 
 
 def plot_simulation(book: OrderBook, price_history, save_path: str = "market_simulation.png"):
@@ -129,11 +132,42 @@ def plot_simulation(book: OrderBook, price_history, save_path: str = "market_sim
     print(f"Chart saved to {save_path}")
 
 
+def plot_pnl(pnl_history, save_path: str = "pnl_over_time.png"):
+    plt.style.use("seaborn-v0_8-whitegrid")
+
+    fig, ax = plt.subplots(figsize=(11, 5), dpi=160)
+
+    xs = [p[0] for p in pnl_history]
+    ys = [p[1] for p in pnl_history]
+    ax.plot(xs, ys, color="#2b2d42", linewidth=1.6, zorder=2)
+    ax.axhline(0, color="#cccccc", linewidth=1, zorder=1)          # zero line, for reference
+
+    ax.fill_between(xs, ys, 0, where=[y >= 0 for y in ys], color="#06a77d", alpha=0.15, zorder=1)
+    ax.fill_between(xs, ys, 0, where=[y < 0 for y in ys], color="#ef476f", alpha=0.15, zorder=1)
+
+    ax.set_title("Order Book Simulator — Bot PnL Over Time", fontsize=14, fontweight="bold",
+                 color="#2b2d42", pad=14)
+    ax.set_xlabel("Tick (arrival order)", fontsize=10.5, color="#555555")
+    ax.set_ylabel("PnL", fontsize=10.5, color="#555555")
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#cccccc")
+    ax.spines["bottom"].set_color("#cccccc")
+    ax.tick_params(colors="#777777", labelsize=9)
+    ax.grid(True, alpha=0.35, linewidth=0.6)
+
+    fig.tight_layout()
+    fig.savefig(save_path, facecolor="white")
+    plt.close(fig)
+    print(f"Chart saved to {save_path}")
+
+
 if __name__ == "__main__":
     # skew_coefficient=0.01 chosen from evaluate_skew.py's 50-seed sweep
     # (see README Findings) - the best mean PnL / lowest variance point
     # before higher values start overcorrecting and giving up edge.
-    book, price_history, bot = simulate_market_with_bot(n_ticks=200, seed=42, skew_coefficient=0.01)
+    book, price_history, bot, pnl_history = simulate_market_with_bot(n_ticks=200, seed=42, skew_coefficient=0.01)
 
     print(f"Executed trades: {len(book.trades)}")
     print(f"Resting orders in bids: {len(book.bids)}  |  in asks: {len(book.asks)}")
@@ -146,3 +180,4 @@ if __name__ == "__main__":
     print(f"Bot PnL: {pnl:.2f}")
 
     plot_simulation(book, price_history, save_path="market_simulation_with_skew.png")
+    plot_pnl(pnl_history, save_path="pnl_over_time.png")

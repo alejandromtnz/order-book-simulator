@@ -118,7 +118,7 @@ This is the first of several weekend milestones. Coming up:
 2. ~~A market-making bot with percentage-based spread quoting.~~ Done.
 3. ~~Inventory and PnL tracking for the bot.~~ Done.
 4. ~~Inventory-skewed quoting, to manage the risk found above.~~ Done.
-5. PnL chart over the course of a simulation.
+5. ~~PnL chart over the course of a simulation.~~ Done (`pnl_over_time.png`).
 6. Optional: volatility-based spread, an Avellaneda-Stoikov-style model,
    robust self-trade prevention, and a C++ port of the matching engine core.
 

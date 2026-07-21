@@ -14,7 +14,7 @@ def evaluate_skew(skew_values, n_seeds: int = 50, n_ticks: int = 200):
         pnls = []
         abs_inventories = []
         for seed in range(n_seeds):
-            book, price_history, bot = simulate_market_with_bot(
+            book, price_history, bot, pnl_history = simulate_market_with_bot(
                 n_ticks=n_ticks, seed=seed, skew_coefficient=skew
             )
             inventory, cash = bot.get_inventory_and_cash()
