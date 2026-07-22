@@ -65,7 +65,7 @@ order-book-simulator/
   README.md
 ```
 
-```markdown
+
 ## Files
 
 - `orderbook.py` - `Order`, `Trade`, and `OrderBook`: the matching engine.
@@ -85,7 +85,7 @@ order-book-simulator/
 - `test_mid_history.py` - first mid recorded, grows each tick, empty without a real mid.
 - `test_volatility.py` - zero with no/one point, matches stdev, ignores old points.
 - `test_volatility_spread.py` - zero coefficient unchanged, high vol widens, calm market unchanged.
-```
+
 
 ## Running it
 
